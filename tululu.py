@@ -12,12 +12,28 @@ logger = logging.getLogger(__name__)
 
 
 def check_for_redirect(response):
+    """
+    Проверяет, есть ли редирект в ответе HTTP запроса.
+    Args:
+        response (requests.Response): Ответ HTTP запроса.
+    Raises:
+        HTTPError: Если в ответе произошел редирект.
+    """
     """Проверяет, есть ли редирект. Если есть - выдаст ошибку"""
     if response.history:
         raise HTTPError(f"Редирект на URL: {response.url}")
 
 
 def get_soup(url):
+    """
+        Отправляет GET запрос по указанному URL и возвращает объект BeautifulSoup.
+        Args:
+            url (str): URL страницы, которую нужно парсить.
+        Returns:
+            BeautifulSoup: Объект BeautifulSoup, содержащий HTML контент страницы.
+        Raises:
+            HTTPError: Если произошла ошибка HTTP запроса.
+        """
     response = requests.get(url, allow_redirects=True)
     response.raise_for_status()
     check_for_redirect(response)
@@ -25,6 +41,20 @@ def get_soup(url):
 
 
 def parse_book_page(soup):
+    """
+        Парсит страницу книги и извлекает необходимую информацию.
+        Args:
+            soup (BeautifulSoup): Объект BeautifulSoup, содержащий HTML контент страницы книги.
+        Returns:
+            tuple: Кортеж, содержащий заголовок книги, автора, URL изображения, комментарии и жанры.
+                   Если заголовок H1 не найден, возвращает (None, None, None...).
+        Notes:
+            - book_title: Заголовок книги.
+            - book_author: Автор книги
+            - book_src_img: путь до изображения книги на сайте 'tululu.ru'
+            - comments: Список комментариев к книге.
+            - genres: Список жанров книги.
+        """
     title_tag = soup.find('h1').text
     if title_tag:
         title_author = title_tag.split('::')
@@ -32,7 +62,7 @@ def parse_book_page(soup):
         book_author = title_author[1].strip()
     else:
         logger.info('Заголовок H1 не найден')
-        return None, None, None
+        return None, None, None, None, None
 
     comments = []
     for comment in soup.find_all(class_='texts'):
@@ -56,6 +86,9 @@ def download_txt(url, filename, folder='books/'):
             folder (str): Папка, куда сохранять.
         Returns:
             str: Путь до файла, куда сохранён текст.
+        Notes:
+        - Создает папку, если она не существует.
+        - Очищает имя файла от недопустимых символов.
         """
     os.makedirs(folder, exist_ok=True)
 
@@ -77,6 +110,18 @@ def download_txt(url, filename, folder='books/'):
 
 
 def download_image(book_url_img, book_id, folder='images/'):
+    """
+        Скачивает изображение по указанному URL и сохраняет его в указанной папке.
+        Args:
+            book_url_img (str): URL изображения.
+            book_id (int): ID книги для формирования имени файла.
+            folder (str, optional): Папка, куда сохранять изображение. Defaults to 'images/'.
+        Returns:
+            str: Путь до сохраненного файла.
+        Notes:
+            - Создает папку, если она не существует.
+            - Определяет расширение файла из URL.
+        """
     response = requests.get(book_url_img)
     response.raise_for_status()
 
@@ -93,8 +138,6 @@ def download_image(book_url_img, book_id, folder='images/'):
 
     return save_path
 
-    # logger.info(f"Скачана обложка книги {book_id}")
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -107,7 +150,6 @@ def main():
 
     start_id = args.start_id
     end_id = args.end_id
-
 
     url = f'https://tululu.org'
     os.makedirs('images', exist_ok=True)
@@ -126,10 +168,9 @@ def main():
             logger.info(f'\nАвтор: {book_author}\nЗаголовок: {book_title}\nИзображение: {book_url_img}\n'
                         f'Пути к скачанным файлам:\n{path_txt_file}\n{path_image}\n{comments}\n{genres}\n\n')
         except HTTPError as e:
-            # logger.info(f"Ошибка при запросе книги: {e}")
+            logger.info(f"Ошибка при запросе книги: {e}")
             continue
 
 
 if __name__ == "__main__":
     main()
-# https://tululu.org/id=5
