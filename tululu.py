@@ -1,3 +1,4 @@
+import argparse
 import requests
 import os
 import logging
@@ -96,11 +97,23 @@ def download_image(book_url_img, book_id, folder='images/'):
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description='Скачивает с tululu.ru с указанным диапазоном'
+    )
+    parser.add_argument('start_id', help='start_id', type=int)
+    parser.add_argument('end_id', help='end_id', type=int)
+
+    args = parser.parse_args()
+
+    start_id = args.start_id
+    end_id = args.end_id
+
+
     url = f'https://tululu.org'
     os.makedirs('images', exist_ok=True)
     url_txt = f'https://tululu.org/txt.php'
 
-    for book_id in range(11):
+    for book_id in range(start_id, end_id + 1):
         try:
             url_book = f'{url}/b{book_id}/'
             soup = get_soup(url_book)
