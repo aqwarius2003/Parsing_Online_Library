@@ -10,13 +10,20 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 
-def get_book_info(url, book_id):
-    url = f'{url}/b{book_id}/'
+def check_for_redirect(response):
+    """Проверяет, есть ли редирект. Если есть - выдаст ошибку"""
+    if response.history:
+        raise HTTPError(f"Редирект на URL: {response.url}")
+
+
+def get_soup(url):
     response = requests.get(url, allow_redirects=True)
     response.raise_for_status()
     check_for_redirect(response)
+    return BeautifulSoup(response.text, 'lxml')
 
-    soup = BeautifulSoup(response.text, 'lxml')
+
+def parse_book_page(soup):
     title_tag = soup.find('h1').text
     if title_tag:
         title_author = title_tag.split('::')
@@ -26,7 +33,6 @@ def get_book_info(url, book_id):
         logger.info('Заголовок H1 не найден')
         return None, None, None
 
-    # comments = soup.find_all(class_='texts').find(spanclass="black")
     comments = []
     for comment in soup.find_all(class_='texts'):
         span = comment.find('span', class_='black')
@@ -35,25 +41,16 @@ def get_book_info(url, book_id):
 
     links = soup.find('span', class_='d_book').find_all('a')
     genres = [link.text.strip() for link in links]
-    print(genres)
-
 
     book_src_img = soup.find(class_="bookimage").find('img')['src']
-    book_url_img = urljoin(url, book_src_img)
 
-    return book_title, book_author, book_url_img, comments, genres
-
-
-def check_for_redirect(response):
-    """Проверяет, есть ли редирект. Если есть - выдаст ошибку"""
-    if response.history:
-        raise HTTPError(f"Редирект на URL: {response.url}")
+    return book_title, book_author, book_src_img, comments, genres
 
 
 def download_txt(url, filename, folder='books/'):
     """Функция для скачивания текстовых файлов.
         Args:
-            url (str): Cсылка на текст, который хочется скачать.
+            url (str): Ссылка на текст, который хочется скачать.
             filename (str): Имя файла, с которым сохранять.
             folder (str): Папка, куда сохранять.
         Returns:
@@ -105,10 +102,13 @@ def main():
 
     for book_id in range(11):
         try:
-            book_title, book_author, book_url_img, comments, genres = get_book_info(url, book_id)
+            url_book = f'{url}/b{book_id}/'
+            soup = get_soup(url_book)
+            book_title, book_author, book_src_img, comments, genres = parse_book_page(soup)
             url_txt = f'{url_txt}?id{book_id}'
             filename = f'{book_id}.{book_title}'
             path_txt_file = download_txt(url_txt, filename)
+            book_url_img = urljoin(url_book, book_src_img)
             path_image = download_image(book_url_img, book_id)
             logger.info(f'\nАвтор: {book_author}\nЗаголовок: {book_title}\nИзображение: {book_url_img}\n'
                         f'Пути к скачанным файлам:\n{path_txt_file}\n{path_image}\n{comments}\n{genres}\n\n')
