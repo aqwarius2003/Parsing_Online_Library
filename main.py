@@ -33,12 +33,15 @@ def get_book_info(url, book_id):
         if span:
             comments.append(span.text)
 
-    # print(comments)
+    links = soup.find('span', class_='d_book').find_all('a')
+    genres = [link.text.strip() for link in links]
+    print(genres)
+
 
     book_src_img = soup.find(class_="bookimage").find('img')['src']
     book_url_img = urljoin(url, book_src_img)
 
-    return book_title, book_author, book_url_img, comments
+    return book_title, book_author, book_url_img, comments, genres
 
 
 def check_for_redirect(response):
@@ -102,13 +105,13 @@ def main():
 
     for book_id in range(11):
         try:
-            book_title, book_author, book_url_img, comments = get_book_info(url, book_id)
+            book_title, book_author, book_url_img, comments, genres = get_book_info(url, book_id)
             url_txt = f'{url_txt}?id{book_id}'
             filename = f'{book_id}.{book_title}'
             path_txt_file = download_txt(url_txt, filename)
             path_image = download_image(book_url_img, book_id)
             logger.info(f'\nАвтор: {book_author}\nЗаголовок: {book_title}\nИзображение: {book_url_img}\n'
-                        f'Пути к скачанным файлам:\n{path_txt_file}\n{path_image}\n{comments}\n\n')
+                        f'Пути к скачанным файлам:\n{path_txt_file}\n{path_image}\n{comments}\n{genres}\n\n')
         except HTTPError as e:
             # logger.info(f"Ошибка при запросе книги: {e}")
             continue
