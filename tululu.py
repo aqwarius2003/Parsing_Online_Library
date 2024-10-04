@@ -7,7 +7,6 @@ from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
 from urllib.parse import urljoin, urlsplit, unquote
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -61,7 +60,7 @@ def parse_book_page(soup):
         book_title = title_author[0].strip()
         book_author = title_author[1].strip()
     else:
-        logger.info('Заголовок H1 не найден')
+        logger.warning('Заголовок H1 не найден')
         return None, None, None, None, None
 
     comments = []
@@ -140,6 +139,8 @@ def download_image(book_url_img, book_id, folder='images/'):
 
 
 def main():
+    logging.basicConfig(level=logging.ERROR)
+    logger.setLevel(logging.DEBUG)
     parser = argparse.ArgumentParser(
         description='Скачивает с tululu.ru с указанным диапазоном'
     )
@@ -168,7 +169,7 @@ def main():
             logger.info(f'\nАвтор: {book_author}\nЗаголовок: {book_title}\nИзображение: {book_url_img}\n'
                         f'Пути к скачанным файлам:\n{path_txt_file}\n{path_image}\n{comments}\n{genres}\n\n')
         except HTTPError as e:
-            logger.info(f"Ошибка при запросе книги: {e}")
+            logger.error(f"Ошибка при запросе книги: {e}")
             continue
 
 
