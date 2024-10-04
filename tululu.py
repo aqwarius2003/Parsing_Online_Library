@@ -10,6 +10,11 @@ from urllib.parse import urljoin, urlsplit, unquote
 logger = logging.getLogger(__name__)
 
 
+class CustomHTTPError(requests.HTTPError):
+    """Кастомное исключение для обработки ошибок HTTP."""
+    pass
+
+
 def check_for_redirect(response):
     """
     Проверяет, есть ли редирект в ответе HTTP запроса.
@@ -20,7 +25,7 @@ def check_for_redirect(response):
     """
     """Проверяет, есть ли редирект. Если есть - выдаст ошибку"""
     if response.history:
-        raise HTTPError(f"Редирект на URL: {response.url}")
+        raise CustomHTTPError(f"Редирект на URL: {response.url}")
 
 
 def get_soup(url):
@@ -94,6 +99,7 @@ def download_txt(url, params, filename, folder='books/'):
 
     response = requests.get(url, params=params)
     response.raise_for_status()
+    check_for_redirect(response)
 
     filename = sanitize_filename(filename)
 
@@ -124,7 +130,7 @@ def download_image(book_url_img, book_id, folder='images/'):
         """
     response = requests.get(book_url_img)
     response.raise_for_status()
-
+    check_for_redirect(response)
     split_url = urlsplit(book_url_img)
     path = unquote(split_url.path)
 
