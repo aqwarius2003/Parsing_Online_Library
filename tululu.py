@@ -6,6 +6,7 @@ from requests.exceptions import HTTPError
 from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
 from urllib.parse import urljoin, urlsplit, unquote
+import textwrap
 
 logger = logging.getLogger(__name__)
 
@@ -175,10 +176,22 @@ def main():
             downloaded_text_file_path = download_txt(text_file_url, params, filename)
             book_image_url = urljoin(book_page_url, book_src_img)
             downloaded_image_path = download_image(book_image_url, book_id)
-            logger.info(f'\nАвтор: {book_author}\nЗаголовок: {book_title}\nИзображение: {book_image_url}\n'
-                        f'Пути к скачанным файлам:\n{downloaded_text_file_path}\n{downloaded_image_path}\n{comments}\n{genres}\n\n')
+            message = f'''
+                        Автор: {book_author}
+                        Заголовок: {book_title}
+                        Изображение: {book_image_url}
+                        Пути к скачанным файлам:
+                        {downloaded_text_file_path}
+                        {downloaded_image_path}
+                        Коментарии:
+                        {comments}
+                        Жанр: {genres}
+                        '''
+            wrapped_message = '\n'.join(textwrap.shorten(line, width=120, placeholder='...')
+                                        for line in message.splitlines())
+            logger.info(wrapped_message)
         except HTTPError as e:
-            logger.error(f"Ошибка при запросе книги: {e}")
+            logger.error(f"Ошибка при запросе книги {book_id}: {e}")
             continue
 
 
