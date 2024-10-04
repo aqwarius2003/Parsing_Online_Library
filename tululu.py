@@ -1,14 +1,40 @@
 import argparse
 import requests
 import os
+import time
 import logging
-from requests.exceptions import HTTPError
+from requests.exceptions import HTTPError, ConnectionError
 from bs4 import BeautifulSoup
 from pathvalidate import sanitize_filename
 from urllib.parse import urljoin, urlsplit, unquote
 import textwrap
 
 logger = logging.getLogger(__name__)
+
+
+def retryable_request(func, max_retries=5, retry_delay=1):
+    """
+    Обертка для функций, выполняющих сетевые запросы с повторными попытками.
+    Args:
+        func: Функция, выполняющая сетевой запрос.
+        max_retries (int): Максимальное количество повторных попыток.
+        retry_delay (int): Задержка между повторными попытками.
+    Returns:
+        Результат выполнения функции или None в случае неудачи.
+    """
+    def wrapper(*args, **kwargs):
+        retries = 0
+        while retries < max_retries:
+            try:
+                return func(*args, **kwargs)
+            except (HTTPError, ConnectionError) as e:
+                logger.error(f"Ошибка при запросе: {e}. Попытка {retries+1} из {max_retries}")
+                retries += 1
+                if retries < max_retries:
+                    time.sleep(retry_delay)
+        logger.error(f"Не удалось выполнить запрос после {max_retries} попыток")
+        return None
+    return wrapper
 
 
 class CustomHTTPError(requests.HTTPError):
@@ -29,6 +55,7 @@ def check_for_redirect(response):
         raise CustomHTTPError(f"Редирект на URL: {response.url}")
 
 
+@retryable_request
 def get_soup(url):
     """
         Отправляет GET запрос по указанному URL и возвращает объект BeautifulSoup.
@@ -83,6 +110,7 @@ def parse_book_page(soup):
     return book_title, book_author, book_src_img, comments, genres
 
 
+@retryable_request
 def download_txt(url, params, filename, folder='books/'):
     """Функция для скачивания текстовых файлов.
         Args:
@@ -116,6 +144,7 @@ def download_txt(url, params, filename, folder='books/'):
     return file_path
 
 
+@retryable_request
 def download_image(book_url_img, book_id, folder='images/'):
     """
         Скачивает изображение по указанному URL и сохраняет его в указанной папке.
