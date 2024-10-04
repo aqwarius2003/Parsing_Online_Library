@@ -77,9 +77,10 @@ def parse_book_page(soup):
     return book_title, book_author, book_src_img, comments, genres
 
 
-def download_txt(url, filename, folder='books/'):
+def download_txt(url, params, filename, folder='books/'):
     """Функция для скачивания текстовых файлов.
         Args:
+            params:
             url (str): Ссылка на текст, который хочется скачать.
             filename (str): Имя файла, с которым сохранять.
             folder (str): Папка, куда сохранять.
@@ -91,7 +92,7 @@ def download_txt(url, filename, folder='books/'):
         """
     os.makedirs(folder, exist_ok=True)
 
-    response = requests.get(url)
+    response = requests.get(url, params=params)
     response.raise_for_status()
 
     filename = sanitize_filename(filename)
@@ -154,20 +155,22 @@ def main():
 
     url = f'https://tululu.org'
     os.makedirs('images', exist_ok=True)
-    url_txt = f'https://tululu.org/txt.php'
+    text_file_url = f'https://tululu.org/txt.php'
 
     for book_id in range(start_id, end_id + 1):
         try:
-            url_book = f'{url}/b{book_id}/'
-            soup = get_soup(url_book)
+            book_page_url = f'{url}/b{book_id}/'
+            soup = get_soup(book_page_url)
             book_title, book_author, book_src_img, comments, genres = parse_book_page(soup)
-            url_txt = f'{url_txt}?id{book_id}'
+            params = {
+                'id': book_id
+            }
             filename = f'{book_id}.{book_title}'
-            path_txt_file = download_txt(url_txt, filename)
-            book_url_img = urljoin(url_book, book_src_img)
-            path_image = download_image(book_url_img, book_id)
-            logger.info(f'\nАвтор: {book_author}\nЗаголовок: {book_title}\nИзображение: {book_url_img}\n'
-                        f'Пути к скачанным файлам:\n{path_txt_file}\n{path_image}\n{comments}\n{genres}\n\n')
+            downloaded_text_file_path = download_txt(text_file_url, params, filename)
+            book_image_url = urljoin(book_page_url, book_src_img)
+            downloaded_image_path = download_image(book_image_url, book_id)
+            logger.info(f'\nАвтор: {book_author}\nЗаголовок: {book_title}\nИзображение: {book_image_url}\n'
+                        f'Пути к скачанным файлам:\n{downloaded_text_file_path}\n{downloaded_image_path}\n{comments}\n{genres}\n\n')
         except HTTPError as e:
             logger.error(f"Ошибка при запросе книги: {e}")
             continue
