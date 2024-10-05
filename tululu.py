@@ -12,31 +12,6 @@ import textwrap
 logger = logging.getLogger(__name__)
 
 
-def retryable_request(func, max_retries=5, retry_delay=1):
-    """
-    Обертка для функций, выполняющих сетевые запросы с повторными попытками.
-    Args:
-        func: Функция, выполняющая сетевой запрос.
-        max_retries (int): Максимальное количество повторных попыток.
-        retry_delay (int): Задержка между повторными попытками.
-    Returns:
-        Результат выполнения функции или None в случае неудачи.
-    """
-    def wrapper(*args, **kwargs):
-        retries = 0
-        while retries < max_retries:
-            try:
-                return func(*args, **kwargs)
-            except (HTTPError, ConnectionError) as e:
-                logger.error(f"Ошибка при запросе: {e}. Попытка {retries+1} из {max_retries}")
-                retries += 1
-                if retries < max_retries:
-                    time.sleep(retry_delay)
-        logger.error(f"Не удалось выполнить запрос после {max_retries} попыток")
-        return None
-    return wrapper
-
-
 class CustomHTTPError(requests.HTTPError):
     """Кастомное исключение для обработки ошибок HTTP."""
     pass
@@ -55,7 +30,6 @@ def check_for_redirect(response):
         raise CustomHTTPError(f"Редирект на URL: {response.url}")
 
 
-@retryable_request
 def get_soup(url):
     """
         Отправляет GET запрос по указанному URL и возвращает объект BeautifulSoup.
@@ -110,7 +84,6 @@ def parse_book_page(soup):
     return book_title, book_author, book_src_img, comments, genres
 
 
-@retryable_request
 def download_txt(url, params, filename, folder='books/'):
     """Функция для скачивания текстовых файлов.
         Args:
@@ -144,7 +117,6 @@ def download_txt(url, params, filename, folder='books/'):
     return file_path
 
 
-@retryable_request
 def download_image(book_url_img, book_id, folder='images/'):
     """
         Скачивает изображение по указанному URL и сохраняет его в указанной папке.
@@ -194,34 +166,48 @@ def main():
     text_file_url = f'https://tululu.org/txt.php'
 
     for book_id in range(start_id, end_id + 1):
-        try:
-            book_page_url = f'{url}/b{book_id}/'
-            soup = get_soup(book_page_url)
-            book_title, book_author, book_src_img, comments, genres = parse_book_page(soup)
-            params = {
-                'id': book_id
-            }
-            filename = f'{book_id}.{book_title}'
-            downloaded_text_file_path = download_txt(text_file_url, params, filename)
-            book_image_url = urljoin(book_page_url, book_src_img)
-            downloaded_image_path = download_image(book_image_url, book_id)
-            message = f'''
-                        Автор: {book_author}
-                        Заголовок: {book_title}
-                        Изображение: {book_image_url}
-                        Пути к скачанным файлам:
-                        {downloaded_text_file_path}
-                        {downloaded_image_path}
-                        Коментарии:
-                        {comments}
-                        Жанр: {genres}
-                        '''
-            wrapped_message = '\n'.join(textwrap.shorten(line, width=120, placeholder='...')
-                                        for line in message.splitlines())
-            logger.info(wrapped_message)
-        except HTTPError as e:
-            logger.error(f"Ошибка при запросе книги {book_id}: {e}")
-            continue
+        retries = 0
+        max_retries = 5
+        retry_delay = 1
+
+        while retries < max_retries:
+            try:
+                book_page_url = f'{url}/b{book_id}/'
+                soup = get_soup(book_page_url)
+                book_title, book_author, book_src_img, comments, genres = parse_book_page(soup)
+                params = {
+                    'id': book_id
+                }
+                filename = f'{book_id}.{book_title}'
+                downloaded_text_file_path = download_txt(text_file_url, params, filename)
+                book_image_url = urljoin(book_page_url, book_src_img)
+                downloaded_image_path = download_image(book_image_url, book_id)
+                message = f'''
+                            Автор: {book_author}
+                            Заголовок: {book_title}
+                            Изображение: {book_image_url}
+                            Пути к скачанным файлам:
+                            {downloaded_text_file_path}
+                            {downloaded_image_path}
+                            Коментарии:
+                            {comments}
+                            Жанр: {genres}
+                            '''
+                wrapped_message = '\n'.join(textwrap.shorten(line, width=120, placeholder='...')
+                                            for line in message.splitlines())
+                logger.info(wrapped_message)
+                break
+            except HTTPError as e:
+                logger.error(f"Редирект на книгу {book_id}: {e}")
+                break
+            except (HTTPError, ConnectionError) as e:
+                logger.error(f"Ошибка при запросе книги {book_id}: {e}.\nПопытка {retries + 1} из {max_retries}")
+                retries += 1
+                if retries < max_retries:
+                    time.sleep(retry_delay)
+                else:
+                    logger.error(f"Не удалось скачать книгу {book_id} после {max_retries} попыток")
+                    break
 
 
 if __name__ == "__main__":
