@@ -1,6 +1,7 @@
 import argparse
 import requests
 import os
+import sys
 import time
 import logging
 from requests.exceptions import HTTPError, ConnectionError
@@ -27,7 +28,7 @@ def check_for_redirect(response):
     """
     """Проверяет, есть ли редирект. Если есть - выдаст ошибку"""
     if response.history:
-        raise CustomHTTPError(f"Редирект на URL: {response.url}")
+        raise CustomHTTPError
 
 
 def get_soup(url):
@@ -40,7 +41,7 @@ def get_soup(url):
         Raises:
             HTTPError: Если произошла ошибка HTTP запроса.
         """
-    response = requests.get(url, allow_redirects=True)
+    response = requests.get(url, allow_redirects=True, timeout=5)
     response.raise_for_status()
     check_for_redirect(response)
     return BeautifulSoup(response.text, 'lxml')
@@ -99,7 +100,7 @@ def download_txt(url, params, filename, folder='books/'):
         """
     os.makedirs(folder, exist_ok=True)
 
-    response = requests.get(url, params=params)
+    response = requests.get(url, params=params, timeout=5)
     response.raise_for_status()
     check_for_redirect(response)
 
@@ -130,7 +131,7 @@ def download_image(book_url_img, book_id, folder='images/'):
             - Создает папку, если она не существует.
             - Определяет расширение файла из URL.
         """
-    response = requests.get(book_url_img)
+    response = requests.get(book_url_img, timeout=5)
     response.raise_for_status()
     check_for_redirect(response)
     split_url = urlsplit(book_url_img)
@@ -168,9 +169,8 @@ def main():
     for book_id in range(start_id, end_id + 1):
         retries = 0
         max_retries = 5
-        retry_delay = 1
-
-        while retries < max_retries:
+        retry_delay = 5
+        while True:
             try:
                 book_page_url = f'{url}/b{book_id}/'
                 soup = get_soup(book_page_url)
@@ -197,17 +197,35 @@ def main():
                                             for line in message.splitlines())
                 logger.info(wrapped_message)
                 break
-            except HTTPError as e:
-                logger.error(f"Редирект на книгу {book_id}: {e}")
+
+            except CustomHTTPError as e:
+                # Обработка ошибки редиректа
+                print(f"Редирект для книги {book_id}: {e}", file=sys.stderr)
                 break
-            except (HTTPError, ConnectionError) as e:
-                logger.error(f"Ошибка при запросе книги {book_id}: {e}.\nПопытка {retries + 1} из {max_retries}")
+
+            except HTTPError as e:
+                # Общие ошибки HTTP (кроме редиректов)
+                print(f"HTTP ошибка при запросе книги {book_id}: {e}.", file=sys.stderr)
+                break
+
+            except (ConnectionError, requests.Timeout) as e:
                 retries += 1
-                if retries < max_retries:
-                    time.sleep(retry_delay)
-                else:
-                    logger.error(f"Не удалось скачать книгу {book_id} после {max_retries} попыток")
+                print(
+                    f'Проблема с книгой {book_id}. Попытка {retries} из {max_retries} из-за проблем с подключением: {e}',
+                    file=sys.stderr)
+                # Обработка нестабильного соединения или таймаута
+
+                if retries == 1:
+                    time.sleep(1)
+                    continue
+                elif retries == max_retries:
+                    print(
+                        f'Не удалось скачать книгу {book_id} после {max_retries} попыток из-за проблем с подключением: {e}',
+                        file=sys.stderr)
                     break
+                else:
+                    time.sleep(retry_delay)
+                    continue
 
 
 if __name__ == "__main__":
