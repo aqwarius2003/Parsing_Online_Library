@@ -27,10 +27,10 @@ def parse_page_by_category(soup):
     Returns:
     list: List of full urls of books.
     """
-    book_links = soup.find_all('table', class_='d_book')
+    book_links = soup.select('table.d_book')
     links = []
     for link in book_links:
-        book_link = link.find('a')['href']
+        book_link = link.select_one('a')['href']
         full_url = urljoin(URL, book_link)
         links.append(full_url)
     return links
@@ -40,12 +40,13 @@ def main():
     logging.basicConfig(level=logging.ERROR)
     logger.setLevel(logging.DEBUG)
 
+    # количество страниц для парсинга
+    quantity_pages = 1
+
     category = f'l55/'
     os.makedirs('images', exist_ok=True)
     os.makedirs('books', exist_ok=True)
 
-    # количество страниц для парсинга
-    quantity_pages = 4
     # список для хранения всех найденных ссылок на книги
     all_links = []
 

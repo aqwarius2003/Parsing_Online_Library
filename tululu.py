@@ -62,7 +62,7 @@ def parse_book_page(soup):
             - comments: Список комментариев к книге.
             - genres: Список жанров книги.
         """
-    title_tag = soup.find('h1').text
+    title_tag = soup.select_one('h1').text
     if title_tag:
         title_author = title_tag.split('::')
         book_title = title_author[0].strip()
@@ -72,15 +72,15 @@ def parse_book_page(soup):
         return None, None, None, None, None
 
     comments = []
-    for comment in soup.find_all(class_='texts'):
-        span = comment.find('span', class_='black')
+    for comment in soup.select('.texts'):
+        span = comment.select_one('span.black')
         if span:
             comments.append(span.text)
 
-    links = soup.find('span', class_='d_book').find_all('a')
+    links = soup.select('span.d_book a')
     genres = [link.text.strip() for link in links]
 
-    book_src_img = soup.find(class_="bookimage").find('img')['src']
+    book_src_img = soup.select_one(".bookimage img")['src']
 
     return book_title, book_author, book_src_img, comments, genres
 
@@ -211,7 +211,8 @@ def main():
             except (ConnectionError, requests.Timeout) as e:
                 retries += 1
                 print(
-                    f'Проблема с книгой {book_id}. Попытка {retries} из {max_retries} из-за проблем с подключением: {e}',
+                    f'Проблема с книгой {book_id}.'
+                    f'Попытка {retries} из {max_retries} из-за проблем с подключением: {e}',
                     file=sys.stderr)
                 # Обработка нестабильного соединения или таймаута
 
@@ -220,7 +221,8 @@ def main():
                     continue
                 elif retries == max_retries:
                     print(
-                        f'Не удалось скачать книгу {book_id} после {max_retries} попыток из-за проблем с подключением: {e}',
+                        f'Не удалось скачать книгу {book_id} '
+                        f'после {max_retries} попыток из-за проблем с подключением: {e}',
                         file=sys.stderr)
                     break
                 else:
