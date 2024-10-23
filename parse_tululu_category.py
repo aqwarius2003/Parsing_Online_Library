@@ -1,17 +1,32 @@
-import requests
 import os
+import json
 from requests.exceptions import HTTPError
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlsplit, unquote
-import time
-from tululu import get_soup, check_for_redirect, CustomHTTPError
+from urllib.parse import urljoin, urlsplit
+from tululu import get_soup, check_for_redirect, download_image, download_txt, parse_book_page, CustomHTTPError
 import logging
+import sys
+import requests
+import time
 
 logger = logging.getLogger(__name__)
 
 URL = 'https://tululu.org'
 
+
 def parse_page_by_category(soup):
+    """
+    Parse page by category.
+
+    This function takes a soup object as argument,
+    finds all book links on the page,
+    and returns a list of full urls of books.
+
+    Parameters:
+    soup (bs4.BeautifulSoup): soup object of the page.
+
+    Returns:
+    list: List of full urls of books.
+    """
     book_links = soup.find_all('table', class_='d_book')
     links = []
     for link in book_links:
@@ -20,21 +35,23 @@ def parse_page_by_category(soup):
         links.append(full_url)
     return links
 
+
 def main():
     logging.basicConfig(level=logging.ERROR)
     logger.setLevel(logging.DEBUG)
 
     category = f'l55/'
     os.makedirs('images', exist_ok=True)
+    os.makedirs('books', exist_ok=True)
 
     # количество страниц для парсинга
-    quantity_pages = 10
-    # пустой список для хранения весех найденых ссылок на книги
+    quantity_pages = 4
+    # список для хранения всех найденных ссылок на книги
     all_links = []
 
     for i in range(1, quantity_pages + 1):
         try:
-            url_parse_page = urljoin(URL,category, str(i))
+            url_parse_page = urljoin(URL, category + str(i))
             soup = get_soup(url_parse_page)
             check_for_redirect(soup)
 
@@ -47,10 +64,69 @@ def main():
             logger.error('ConnectionError: %s', url_parse_page)
             break
 
-    for link in all_links:
-        print(link)
-    print(f'Выше {len(all_links)} ссылок от книг по теме научная фантастика с {quantity_pages} страниц')
+    books_data = []
+    text_file_url = f'https://tululu.org/txt.php'
 
+    for link in all_links:
+        retries = 0
+        max_retries = 2
+        retry_delay = 1
+        while True:
+            try:
+                soup = get_soup(link)
+                book_title, book_author, book_src_img, comments, genres = parse_book_page(soup)
+                file_number = urlsplit(link).path.rsplit('/')[1][1:]  # Возвращает типа 550 номер книги на сайте
+                params = {
+                    'id': file_number
+                }
+                filename = f'{file_number}.{book_title}'
+                downloaded_text_file_path = download_txt(text_file_url, params, filename)
+                book_image_url = urljoin(link, book_src_img)
+                downloaded_image_path = download_image(book_image_url, int(file_number))
+                book_data = {
+                    'title': book_title,
+                    'author': book_author,
+                    'img_src': downloaded_image_path,
+                    'book_path': downloaded_text_file_path,
+                    'comments': comments,
+                    'genres': genres
+                }
+                books_data.append(book_data)
+                break  # Выход из цикла while True, если скачивание успешно
+
+            except CustomHTTPError as e:
+                # Обработка ошибки редиректа
+                print(f"Редирект для книги {file_number}: {e}", file=sys.stderr)
+                break  # Выход из цикла while True, если редирект по этой ссылке
+
+            except HTTPError as e:
+                # Общие ошибки HTTP (кроме редиректов)
+                print(f"HTTP ошибка при запросе книги {file_number}: {e}.", file=sys.stderr)
+                break
+
+            except (ConnectionError, requests.Timeout) as e:
+                retries += 1
+                print(
+                    f'Проблема с книгой {file_number}. '
+                    f'Попытка {retries} из {max_retries} из-за проблем с подключением: {e}',
+                    file=sys.stderr)
+
+                # Обработка нестабильного соединения или таймаута
+                if retries == 1:
+                    time.sleep(1)
+                    continue
+                elif retries == max_retries:
+                    print(
+                        f'Не удалось скачать книгу {file_number} '
+                        f'после {max_retries} попыток из-за проблем с подключением: {e}',
+                        file=sys.stderr)
+                    break  # Прерывает цикл while True
+                else:
+                    time.sleep(retry_delay)
+                    continue  # Продолжает цикл while True
+
+    with open('books_data.json', 'w', encoding='utf-8') as json_file:
+        json.dump(books_data, json_file, ensure_ascii=False, indent=4)
 
 
 if __name__ == '__main__':
