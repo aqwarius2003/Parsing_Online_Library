@@ -42,10 +42,17 @@ def main():
     logger.setLevel(logging.DEBUG)
 
     parser = argparse.ArgumentParser(
-        description='Скачивает с tululu.ru с указанным диапазоном'
+        description='Скачивает с tululu.ru книги жанра научная фантастика с указанным диапазоном страниц'
     )
     parser.add_argument('--start_page', help='start_page', type=int)
     parser.add_argument('--end_page', nargs='?', help='end_page', type=int)
+
+    parser.add_argument('--dest_folder', type=str, default='.',
+                        help='путь к каталогу материалов для скачивания')
+    parser.add_argument('--skip_img', action='store_true', default=False,
+                        help='не скачивать изображения')
+    parser.add_argument('--skip_txt', action='store_true', default=False,
+                        help='не скачивать текст книг')
 
     args = parser.parse_args()
 
@@ -53,8 +60,12 @@ def main():
     end_page = args.end_page
 
     category = f'l55/'
-    os.makedirs('images', exist_ok=True)
-    os.makedirs('books', exist_ok=True)
+
+    images_folder = os.path.normpath(os.path.join(args.dest_folder, 'images/'))
+    books_folder = os.path.normpath(os.path.join(args.dest_folder, 'books/'))
+
+    os.makedirs(images_folder, exist_ok=True)
+    os.makedirs(books_folder, exist_ok=True)
 
     # список для хранения всех найденных ссылок на книги
     all_links = []
@@ -85,7 +96,7 @@ def main():
     for link in all_links:
         retries = 0
         max_retries = 2
-        retry_delay = 1
+        retry_delay = 2
         while True:
             try:
                 soup = get_soup(link)
@@ -95,9 +106,19 @@ def main():
                     'id': file_number
                 }
                 filename = f'{file_number}.{book_title}'
-                downloaded_text_file_path = download_txt(text_file_url, params, filename)
+
+                if not args.skip_txt:
+                    downloaded_text_file_path = os.path.normpath(
+                        download_txt(text_file_url, params, filename, books_folder))
+                else:
+                    downloaded_text_file_path = None
                 book_image_url = urljoin(link, book_src_img)
-                downloaded_image_path = download_image(book_image_url, int(file_number))
+                if not args.skip_img:
+                    downloaded_image_path = os.path.normpath(
+                        download_image(book_image_url, int(file_number), images_folder))
+                else:
+                    downloaded_image_path = None
+
                 book_data = {
                     'title': book_title,
                     'author': book_author,
@@ -140,7 +161,7 @@ def main():
                     time.sleep(retry_delay)
                     continue  # Продолжает цикл while True
 
-    with open('books_data.json', 'w', encoding='utf-8') as json_file:
+    with open(os.path.join(args.dest_folder, 'books_data.json'), 'w', encoding='utf-8') as json_file:
         json.dump(books_data, json_file, ensure_ascii=False, indent=4)
 
 

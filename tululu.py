@@ -98,8 +98,6 @@ def download_txt(url, params, filename, folder='books/'):
         - Создает папку, если она не существует.
         - Очищает имя файла от недопустимых символов.
         """
-    os.makedirs(folder, exist_ok=True)
-
     response = requests.get(url, params=params, timeout=5)
     response.raise_for_status()
     check_for_redirect(response)
