@@ -1,3 +1,4 @@
+import argparse
 import os
 import json
 from requests.exceptions import HTTPError
@@ -40,8 +41,16 @@ def main():
     logging.basicConfig(level=logging.ERROR)
     logger.setLevel(logging.DEBUG)
 
-    # количество страниц для парсинга
-    quantity_pages = 1
+    parser = argparse.ArgumentParser(
+        description='Скачивает с tululu.ru с указанным диапазоном'
+    )
+    parser.add_argument('--start_page', help='start_page', type=int)
+    parser.add_argument('--end_page', nargs='?', help='end_page', type=int)
+
+    args = parser.parse_args()
+
+    start_page = args.start_page
+    end_page = args.end_page
 
     category = f'l55/'
     os.makedirs('images', exist_ok=True)
@@ -50,16 +59,21 @@ def main():
     # список для хранения всех найденных ссылок на книги
     all_links = []
 
-    for i in range(1, quantity_pages + 1):
+    current_page = start_page
+    while True:
+        if end_page is not None and current_page > end_page:
+            break
         try:
-            url_parse_page = urljoin(URL, category + str(i))
+            url_parse_page = urljoin(URL, category + str(current_page))
             soup = get_soup(url_parse_page)
             check_for_redirect(soup)
 
             links = parse_page_by_category(soup)
             all_links.extend(links)
+            current_page += 1
+
         except HTTPError:
-            logger.error('HTTPError: %s', url_parse_page)
+            logger.info(f'На странице {current_page} книги закончились')
             break
         except ConnectionError:
             logger.error('ConnectionError: %s', url_parse_page)
