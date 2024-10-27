@@ -72,12 +72,16 @@ def main():
 
     current_page = start_page
     while True:
-        if end_page and current_page > end_page:
+        # if end_page and current_page > end_page:
+        # В этом случае, если end_page равно None, условие end_page and current_page > end_page будет ложным,
+        # поскольку None рассматривается как ложное значение в логических операциях.
+
+        if current_page > (end_page or float('inf')):
             break
         try:
-            url_parse_page = urljoin(URL, category + str(current_page))
+            url_parse_page = urljoin(URL, f'{category}{current_page}')
+            print(url_parse_page)
             soup = get_soup(url_parse_page)
-            check_for_redirect(soup)
 
             links = parse_page_by_category(soup)
             all_links.extend(links)
@@ -88,6 +92,7 @@ def main():
             break
         except ConnectionError:
             logger.error('ConnectionError: %s', url_parse_page)
+            time.sleep(5)
             break
 
     books_data = []
