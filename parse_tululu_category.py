@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 URL = 'https://tululu.org'
 
 
-def parse_page_by_category(soup):
+def parse_page_by_category(soup, base_url):
     """
     Parse page by category.
 
@@ -32,7 +32,7 @@ def parse_page_by_category(soup):
     links = []
     for link in book_links:
         book_link = link.select_one('a')['href']
-        full_url = urljoin(URL, book_link)
+        full_url = urljoin(base_url, book_link)
         links.append(full_url)
     return links
 
@@ -80,10 +80,9 @@ def main():
             break
         try:
             url_parse_page = urljoin(URL, f'{category}{current_page}')
-            print(url_parse_page)
             soup = get_soup(url_parse_page)
 
-            links = parse_page_by_category(soup)
+            links = parse_page_by_category(soup, url_parse_page)
             all_links.extend(links)
             current_page += 1
 
@@ -95,7 +94,7 @@ def main():
             time.sleep(5)
             break
 
-    books_data = []
+    books = []
     text_file_url = f'https://tululu.org/txt.php'
 
     for link in all_links:
@@ -124,7 +123,7 @@ def main():
                 else:
                     downloaded_image_path = None
 
-                book_data = {
+                book = {
                     'title': book_title,
                     'author': book_author,
                     'img_src': downloaded_image_path,
@@ -132,7 +131,7 @@ def main():
                     'comments': comments,
                     'genres': genres
                 }
-                books_data.append(book_data)
+                books.append(book)
                 break  # Выход из цикла while True, если скачивание успешно
 
             except CustomHTTPError as e:
@@ -166,8 +165,8 @@ def main():
                     time.sleep(retry_delay)
                     continue  # Продолжает цикл while True
 
-    with open(os.path.join(args.dest_folder, 'books_data.json'), 'w', encoding='utf-8') as json_file:
-        json.dump(books_data, json_file, ensure_ascii=False, indent=4)
+    with open(os.path.join(args.dest_folder, 'books.json'), 'w', encoding='utf-8') as json_file:
+        json.dump(books, json_file, ensure_ascii=False, indent=4)
 
 
 if __name__ == '__main__':
