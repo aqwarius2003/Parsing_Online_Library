@@ -72,7 +72,7 @@ def main():
 
     current_page = start_page
     while True:
-        if end_page is not None and current_page > end_page:
+        if end_page and current_page > end_page:
             break
         try:
             url_parse_page = urljoin(URL, category + str(current_page))
