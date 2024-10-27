@@ -72,10 +72,6 @@ def main():
 
     current_page = start_page
     while True:
-        # if end_page and current_page > end_page:
-        # В этом случае, если end_page равно None, условие end_page and current_page > end_page будет ложным,
-        # поскольку None рассматривается как ложное значение в логических операциях.
-
         if current_page > (end_page or float('inf')):
             break
         try:
